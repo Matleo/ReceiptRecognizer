@@ -15,7 +15,7 @@ def readDFs(folder):
     return dfs
 
 def splitTrainTest(test_amount):
-    random.seed(123456)
+    random.seed(1234)
 
     # split list into test and train lists
     dfs = readDFs("./data")
@@ -84,9 +84,6 @@ def test(df, forest, plainText):
 def main():
     test_amount = 0.2
     train_df, test_df = splitTrainTest(test_amount)
-    #TODO: replace char values with one-hot-encoded (pd.get_dummies or sklearn.preprocessing.OneHotEncoder)
-    train_df = train_df.drop(columns=["firstChar","lastChar"])
-    test_df = test_df.drop(columns=["firstChar","lastChar"])
 
     #drop unnecessary features:
     dropFeatures = ["minus","totalRows","rowNumber"]

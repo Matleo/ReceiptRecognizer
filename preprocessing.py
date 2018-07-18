@@ -102,11 +102,12 @@ def convertRowsToFeatureVectors(rows):
         newFeatureVector["eurExists"] = euroExists(row["plainText"])
         newFeatureVector["sumExists"] = sumExists(row["plainText"])
 
-        newFeatureVector["firstChar"] = row["plainText"][0]
-        newFeatureVector["lastChar"] = row["plainText"][len(row["plainText"])-2]
-        #-2 because last char is always space (due to how i append the plainText)
+        newFeatureVector["firstCharDigit"] = firstCharDigit(row["plainText"])
+        newFeatureVector["firstCharAB"] = firstCharAB(row["plainText"])
+        newFeatureVector["lastCharAB"] = lastCharAB(row["plainText"])
+        newFeatureVector["lastCharDigit"] = lastCharDigit(row["plainText"])
 
-        #add quotient whitespace/width to TODO:
+        #add quotient whitespace/width
         whitespaces = calculateWhitespace(row)
         newFeatureVector["totalWhitespace"] = 0
         newFeatureVector["biggestWhitespaceLength"] = 0
@@ -140,7 +141,21 @@ def sumExists(text):
     val = re.findall("summe|sum|total>", text.lower())
     if len(val) > 0: return True
     else: return False
-
+def firstCharDigit(text):
+    if (text[0] == "I") | (text[0].isdigit()): return True
+    else: return False
+def firstCharAB(text):
+    c = text[0].lower()
+    if (c == "a") | (c == "b") | (c == "0"): return True
+    else: return False
+def lastCharAB(text):
+    c = text[len(text)-2].lower()
+    if (c == "a") | (c == "b") | (c == "0"): return True
+    else: return False
+def lastCharDigit(text):
+    c = text[len(text) - 2]
+    if (c == "I") | (c.isdigit()): return True
+    else: return False
 def calculateWhitespace(row):
     words = row["words"]
     whitespaces = []
@@ -152,16 +167,15 @@ def calculateWhitespace(row):
         whitespaces.append(whitespace)
     return whitespaces
 
-
 #3)makes df from dict and adds features (those that are relative to upper/lower row)
 def makeDF(featureVectors):
     df = pd.DataFrame(featureVectors)
     #rearrange columns
     df = df[["plainText","x0","y0","width","height","wordCount",
              "LowerCaseLetters","UpperCaseLetters","numbers","dots","minus","colons","otherDigits",
-             "floats","firstChar","lastChar","totalWhitespace","whitespaceQuot",
-             "biggestWhitespaceLength","biggestWhitespaceX0","sumExists","eurExists",
-             "rowNumber","totalRows","relativeRowPosition"]]
+             "floats","firstCharDigit","firstCharAB","lastCharAB","lastCharDigit",
+             "totalWhitespace","whitespaceQuot","biggestWhitespaceLength","biggestWhitespaceX0",
+             "sumExists","eurExists","rowNumber","totalRows","relativeRowPosition"]]
     #sort by y0 and renew indexes (probably redundant)
     df = df.sort_values(by=['y0']).reset_index(drop=True)
 
