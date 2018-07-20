@@ -1,18 +1,15 @@
 import re
 import pandas as pd
 import json
-from PIL import Image, ImageDraw
-from random import randint
 from pprint import pprint
 import os
 
 pd.set_option('expand_frame_repr', False)
 
 #1)Read rows
-def readRows(name, print):
+def readRows(jsonPath):
     rows = []
-    pathJSON = "./data/"+name+"-40.webp.json"
-    with open(pathJSON, encoding="utf-8") as f:
+    with open(jsonPath, encoding="utf-8") as f:
         data = json.load(f)
         for line in data:
             row = {}
@@ -47,31 +44,17 @@ def readRows(name, print):
             maxY1 = max(y1s)
             height = maxY1 - y0
             row["boundingBox"] = [x0,y0,width,height]
+            row["jsonPath"] = jsonPath
 
             rows.append(row)
-    if not print == "none":
-        pathIMG = "./data/"+name+".jpg"
-        im = Image.open(pathIMG)
-        draw = ImageDraw.Draw(im)
-        if print == "rows":
-            for row in rows:
-                boundingBox = row["boundingBox"]
-                coordinates = [boundingBox[0],boundingBox[1],boundingBox[0]+boundingBox[2],boundingBox[1]+boundingBox[3]]
-                rndColor = (randint(0, 255), randint(0, 255), randint(0, 255))
-                draw.rectangle(coordinates, outline=rndColor)
-        elif print == "elements":
-            for row in rows:
-                for word in row["words"]:
-                    boundingBox = word["boundingBox"]
-                    coordinates = [boundingBox[0],boundingBox[1],boundingBox[0]+boundingBox[2],boundingBox[1]+boundingBox[3]]
-                    rndColor = (randint(0, 255), randint(0, 255), randint(0, 255))
-                    draw.rectangle(coordinates, outline=rndColor)
-        im.show()
     return rows
 
 
 #2)RowToFeatures
 def convertRowsToFeatureVectors(rows):
+    #significantWhiteSpace = 3 * avg width of first n found single character boundingBox
+    significantWhiteSpaceWidth = 3 * findSWSW(rows, 5)
+
     featureVectors=[]
     for i in range(0,len(rows)):
         row = rows[i]
@@ -91,12 +74,11 @@ def convertRowsToFeatureVectors(rows):
         newFeatureVector["LowerCaseLetters"] = sum(c.isalpha() & c.islower() for c in row["plainText"])
         spaces = sum(c.isspace() for c in row["plainText"]) #dont add to features, since it is redundant to wordCount
         newFeatureVector["dots"] = sum((c == ",") | (c == ".") for c in row["plainText"])
-        newFeatureVector["minus"] = sum(c == "-" for c in row["plainText"])
         newFeatureVector["colons"] = sum((c == ":") | (c == ";") for c in row["plainText"])
         newFeatureVector["otherDigits"] = len(row["plainText"]) \
                                      - newFeatureVector["numbers"] - newFeatureVector["UpperCaseLetters"] \
                                      - newFeatureVector["LowerCaseLetters"] - spaces - newFeatureVector["dots"] \
-                                     - newFeatureVector["minus"] - newFeatureVector["colons"]
+                                     - newFeatureVector["colons"]
         newFeatureVector["floats"] = countFloats(row["plainText"])
 
         newFeatureVector["eurExists"] = euroExists(row["plainText"])
@@ -110,21 +92,25 @@ def convertRowsToFeatureVectors(rows):
         #add quotient whitespace/width
         whitespaces = calculateWhitespace(row)
         newFeatureVector["totalWhitespace"] = 0
+        newFeatureVector["significantWhitespaces"] = 0
         newFeatureVector["biggestWhitespaceLength"] = 0
         newFeatureVector["biggestWhitespaceX0"] = 0
         for whitespace in whitespaces:
             newFeatureVector["totalWhitespace"] += whitespace["length"]
+            #look for max
             if whitespace["length"] > newFeatureVector["biggestWhitespaceLength"]:
                 newFeatureVector["biggestWhitespaceLength"] = whitespace["length"]
                 newFeatureVector["biggestWhitespaceX0"] = whitespace["x0"]
+            #check if significant
+            if whitespace["length"] > significantWhiteSpaceWidth:
+                newFeatureVector["significantWhitespaces"] += 1
         newFeatureVector["whitespaceQuot"] = newFeatureVector["totalWhitespace"] / newFeatureVector["width"]
 
-        newFeatureVector["rowNumber"] = i+1
-        newFeatureVector["totalRows"] = len(rows)
-        newFeatureVector["relativeRowPosition"] = newFeatureVector["rowNumber"] / newFeatureVector["totalRows"]
+        rowNumber = i+1
+        totalRows = len(rows)
+        newFeatureVector["relativeRowPosition"] = rowNumber / totalRows
 
-
-
+        newFeatureVector["jsonPath"] = row["jsonPath"]
 
         featureVectors.append(newFeatureVector)
     return featureVectors
@@ -166,16 +152,33 @@ def calculateWhitespace(row):
         whitespace = {"x0" : x1 , "length" :length} #whitespace x0 = left word x1
         whitespaces.append(whitespace)
     return whitespaces
+def findSWSW(rows, findAvgValues):
+    widths = []
+    #skip first row:
+    for i in range(1, len(rows)):
+        row = rows[i]
+        for word in row["words"]:
+            if len(word["text"]) == 1:
+                width = word["boundingBox"][2]
+                widths.append(int(width))
+                if len(widths) == findAvgValues:
+                    return sum(widths) / float(len(widths))
+    #this code is only reached, if couldnt find n one-char-words in the rows
+    if len(widths) == 0:
+        return 10
+    else:
+        return sum(widths) / float(len(widths))
+
 
 #3)makes df from dict and adds features (those that are relative to upper/lower row)
 def makeDF(featureVectors):
     df = pd.DataFrame(featureVectors)
     #rearrange columns
-    df = df[["plainText","x0","y0","width","height","wordCount",
-             "LowerCaseLetters","UpperCaseLetters","numbers","dots","minus","colons","otherDigits",
+    df = df[["plainText", "jsonPath","x0","y0","width","height","wordCount",
+             "LowerCaseLetters","UpperCaseLetters","numbers","dots","colons","otherDigits",
              "floats","firstCharDigit","firstCharAB","lastCharAB","lastCharDigit",
              "totalWhitespace","whitespaceQuot","biggestWhitespaceLength","biggestWhitespaceX0",
-             "sumExists","eurExists","rowNumber","totalRows","relativeRowPosition"]]
+             "significantWhitespaces","sumExists","eurExists","relativeRowPosition"]]
     #sort by y0 and renew indexes (probably redundant)
     df = df.sort_values(by=['y0']).reset_index(drop=True)
 
@@ -203,17 +206,71 @@ def makeDF(featureVectors):
     df["distanceTop"] = distancesTop
     df["distanceBot"] = distancesBot
 
+
+    #add maxWhiteSpaceLength/X0 matches top/bot
+    maxWhiteSpaceLengthMatches = [] #counts if row on top/bot have same maxWhiteSpaceLength
+    maxWhiteSpaceX0Matches = []
+    for index, row in df.iterrows():
+        length = row["biggestWhitespaceLength"]
+        x0 = row["biggestWhitespaceX0"]
+        if index == 0:#first row
+            nextLength = df.iloc[index + 1]["biggestWhitespaceLength"]
+            nextX0 = df.iloc[index + 1]["biggestWhitespaceX0"]
+            if abs(nextLength-length) < 5:
+                lengthMatches = 1
+            else:
+                lengthMatches = 0
+            if abs(nextX0-x0) < 5:
+                x0Matches = 1
+            else:
+                x0Matches = 0
+        elif index == (len(df.index)-1):#last row
+            previousLength = df.iloc[index - 1]["biggestWhitespaceLength"]
+            previousX0 = df.iloc[index - 1]["biggestWhitespaceX0"]
+            if abs(previousLength - length) < 5:
+                lengthMatches = 1
+            else:
+                lengthMatches = 0
+            if abs(previousX0 - x0) < 5:
+                x0Matches = 1
+            else:
+                x0Matches = 0
+        else:
+            previousLength = df.iloc[index - 1]["biggestWhitespaceLength"]
+            previousX0 = df.iloc[index - 1]["biggestWhitespaceX0"]
+            if abs(previousLength - length) < 5:
+                lengthMatches = 1
+            else:
+                lengthMatches = 0
+            if abs(previousX0 - x0) < 5:
+                x0Matches = 1
+            else:
+                x0Matches = 0
+
+            nextLength = df.iloc[index + 1]["biggestWhitespaceLength"]
+            nextX0 = df.iloc[index + 1]["biggestWhitespaceX0"]
+            if abs(nextLength - length) < 5:
+                lengthMatches += 1
+            if abs(nextX0 - x0) < 5:
+                x0Matches += 1
+        maxWhiteSpaceLengthMatches.append(lengthMatches)
+        maxWhiteSpaceX0Matches.append(x0Matches)
+
+    df["maxWhiteSpaceLengthMatches"] = maxWhiteSpaceLengthMatches
+    df["maxWhiteSpaceX0Matches"] = maxWhiteSpaceX0Matches
+
+
     return df
 
 
-def get_df(name , print="none"):
-    rows = readRows(name, print)
+def get_df(jsonPath):
+    rows = readRows(jsonPath)
     featureVectors = convertRowsToFeatureVectors(rows)
     df_nolabel = makeDF(featureVectors)
     return df_nolabel
 
-def append_label(df, name):
-    label_df = pd.read_pickle("./data/"+name+"_label.pkl")
+def append_label(df, labelPath):
+    label_df = pd.read_pickle(labelPath)
     df["rowClass"] = label_df["rowClass"]
     return df
 
@@ -225,8 +282,10 @@ def main(folder):
             names.append(file.split(".jpg")[0])
     for i in range(0,len(names)):
         name = names[i]
-        df = get_df(name, "none")
-        df = append_label(df, name)
+        jsonPath = folder + "/" + name + "-40.webp.json"
+        df = get_df(jsonPath)
+        labelPath = folder + "/" + name + "_label.pkl"
+        df = append_label(df, labelPath)
 
         picklePath = folder + "/" + name + "_df.pkl"
         df.to_pickle(picklePath)  # save labeled df
@@ -236,4 +295,4 @@ def main(folder):
 
 
 if __name__ =="__main__":
-    main("./data")
+    main("../assets/müllerData")

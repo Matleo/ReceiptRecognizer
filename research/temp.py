@@ -1,4 +1,6 @@
-import pandas as pd
+import pandas
+import pickle
 
-df = pd.read_pickle("../data/tx_100_2_df.pkl")
-print(df.to_string())
+with open("../assets/müllerData/tx_2_2_df.pkl", "rb") as infile:
+    df = pickle.load(infile)
+    print(df.to_string())

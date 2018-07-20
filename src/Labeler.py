@@ -1,9 +1,9 @@
 import sys
 import os
-from PyQt5.QtWidgets import QApplication, QWidget, QDesktopWidget, QMainWindow, QAction, qApp, QMenu, QLabel, QScrollArea, QFileDialog
+from PyQt5.QtWidgets import QApplication, QDesktopWidget, QMainWindow, QAction, qApp, QMenu, QLabel, QScrollArea, QFileDialog
 from PyQt5.QtGui import QIcon, QPixmap, QPainter, QPen, QColor, QBrush
-from PyQt5.QtCore import QPoint, Qt
-from preprocessing import get_df
+from PyQt5.QtCore import Qt
+from src.preprocessing import get_df
 from random import randint
 
 class LabelWindow(QMainWindow):
@@ -16,7 +16,9 @@ class LabelWindow(QMainWindow):
         self.imgCount = 0 #keep track on which file we are
         self.path = self.folder+"/"+self.imgNames[0]+".jpg"
         self.pixmap = QPixmap(self.path)
-        self.df = get_df(self.imgNames[0])
+
+        jsonPath = self.folder + "/" + self.imgNames[0] + "-40.webp.json"
+        self.df = get_df(jsonPath)
         self.df["rowClass"] = 0 #set all classes to 0
 
         self.minMouseY = None
@@ -32,7 +34,7 @@ class LabelWindow(QMainWindow):
         self.initMenu()
 
         self.setWindowTitle('Labeler')
-        self.setWindowIcon(QIcon('./img/label.png'))
+        self.setWindowIcon(QIcon('../assets/img/label.png'))
         self.resize(self.pixmap.width()+20, QDesktopWidget().availableGeometry().height()-30)
 
         self.center()
@@ -48,17 +50,17 @@ class LabelWindow(QMainWindow):
         self.move(frame.topLeft())
 
     def initMenu(self):
-        saveAct = QAction(QIcon('./img/save.png'), 'Save', self)
+        saveAct = QAction(QIcon('../assets/img/save.png'), 'Save', self)
         saveAct.setShortcut('Ctrl+S')
         saveAct.setStatusTip('Save Classes and also opens next image')
         saveAct.triggered.connect(self.saveClasses)
 
-        refreshAct = QAction(QIcon('./img/refresh.jpg'), 'Refresh', self)
+        refreshAct = QAction(QIcon('../assets/img/refresh.jpg'), 'Refresh', self)
         refreshAct.setShortcut('Ctrl+R')
         refreshAct.setStatusTip('Refresh picture')
         refreshAct.triggered.connect(self.refreshPic)
 
-        exitAct = QAction(QIcon('./img/exit.png'), 'Exit', self)
+        exitAct = QAction(QIcon('../assets/img/exit.png'), 'Exit', self)
         exitAct.setShortcut('Ctrl+Q')
         exitAct.setStatusTip('Exit application')
         exitAct.triggered.connect(qApp.quit)
@@ -198,7 +200,8 @@ class LabelWindow(QMainWindow):
         print("-----------------------------------------------")
         if self.imgCount < len(self.imgNames):
             name = self.imgNames[self.imgCount]
-            self.df = get_df(name)
+            jsonPath = self.folder + "/" + name + "-40.webp.json"
+            self.df = get_df(jsonPath)
             self.df["rowClass"] = 0  # set all classes to 0
 
             self.path = self.folder + "/" + name + ".jpg"
