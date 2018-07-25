@@ -67,6 +67,7 @@ def convertRowsToFeatureVectors(rows):
         newFeatureVector["width"] = boundingBox[2]
         newFeatureVector["height"] = boundingBox[3]
 
+
         newFeatureVector["wordCount"] = len(row["words"])
 
         newFeatureVector["numbers"] = sum(c.isdigit() for c in row["plainText"])
@@ -83,9 +84,11 @@ def convertRowsToFeatureVectors(rows):
 
         newFeatureVector["eurExists"] = euroExists(row["plainText"])
         newFeatureVector["sumExists"] = sumExists(row["plainText"])
+        newFeatureVector["belegExists"] = belegExists(row["plainText"])
 
         newFeatureVector["firstCharDigit"] = firstCharDigit(row["plainText"])
         newFeatureVector["firstCharAB"] = firstCharAB(row["plainText"])
+        newFeatureVector["lastCharAWBW"] = lastCharAWBW(row["plainText"])
         newFeatureVector["lastCharAB"] = lastCharAB(row["plainText"])
         newFeatureVector["lastCharDigit"] = lastCharDigit(row["plainText"])
 
@@ -95,16 +98,25 @@ def convertRowsToFeatureVectors(rows):
         newFeatureVector["significantWhitespaces"] = 0
         newFeatureVector["biggestWhitespaceLength"] = 0
         newFeatureVector["biggestWhitespaceX0"] = 0
+
         for whitespace in whitespaces:
             newFeatureVector["totalWhitespace"] += whitespace["length"]
+
             #look for max
             if whitespace["length"] > newFeatureVector["biggestWhitespaceLength"]:
                 newFeatureVector["biggestWhitespaceLength"] = whitespace["length"]
                 newFeatureVector["biggestWhitespaceX0"] = whitespace["x0"]
+
             #check if significant
             if whitespace["length"] > significantWhiteSpaceWidth:
                 newFeatureVector["significantWhitespaces"] += 1
-        newFeatureVector["whitespaceQuot"] = newFeatureVector["totalWhitespace"] / newFeatureVector["width"]
+
+        if newFeatureVector["width"] <= 0:
+            newFeatureVector["whitespaceQuot"] = 0
+            print("####Attention: this row had a width of 0:")
+            print(row)
+        else:
+            newFeatureVector["whitespaceQuot"] = newFeatureVector["totalWhitespace"] / newFeatureVector["width"]
 
         rowNumber = i+1
         totalRows = len(rows)
@@ -112,7 +124,9 @@ def convertRowsToFeatureVectors(rows):
 
         newFeatureVector["jsonPath"] = row["jsonPath"]
 
+
         featureVectors.append(newFeatureVector)
+
     return featureVectors
 
 def countFloats(text):
@@ -120,11 +134,15 @@ def countFloats(text):
     matches = re.findall(regex, text)
     return len(matches)
 def euroExists(text):
-    val = re.findall("euro|€|eur>", text.lower())
+    val = re.findall("euro|€|eur", text.lower())
+    if len(val) > 0: return True
+    else: return False
+def belegExists(text):
+    val = re.findall("Beleg", text)
     if len(val) > 0: return True
     else: return False
 def sumExists(text):
-    val = re.findall("summe|sum|total>", text.lower())
+    val = re.findall("summe|sum|total|sunime|suinme|sumine|sumnie>", text.lower())
     if len(val) > 0: return True
     else: return False
 def firstCharDigit(text):
@@ -142,6 +160,15 @@ def lastCharDigit(text):
     c = text[len(text) - 2]
     if (c == "I") | (c.isdigit()): return True
     else: return False
+def lastCharAWBW(text):
+    if(len(text)>3):
+        c = text[len(text)-3:len(text) - 1].lower()#last two chars
+        if (c[0] in ["a","b","0"]) & (c[1] in ["w","p"]):
+            return True
+        else:
+            return False
+    else:
+        return False
 def calculateWhitespace(row):
     words = row["words"]
     whitespaces = []
@@ -176,10 +203,10 @@ def makeDF(featureVectors):
     #rearrange columns
     df = df[["plainText", "jsonPath","x0","y0","width","height","wordCount",
              "LowerCaseLetters","UpperCaseLetters","numbers","dots","colons","otherDigits",
-             "floats","firstCharDigit","firstCharAB","lastCharAB","lastCharDigit",
+             "floats","firstCharDigit","firstCharAB","lastCharAB","lastCharDigit", "lastCharAWBW",
              "totalWhitespace","whitespaceQuot","biggestWhitespaceLength","biggestWhitespaceX0",
-             "significantWhitespaces","sumExists","eurExists","relativeRowPosition"]]
-    #sort by y0 and renew indexes (probably redundant)
+             "significantWhitespaces","sumExists","eurExists","belegExists", "relativeRowPosition"]]
+    #sort by y0 and renew indexes (probably redundant)a
     df = df.sort_values(by=['y0']).reset_index(drop=True)
 
     # add distance to rows on top/bottom
@@ -210,48 +237,49 @@ def makeDF(featureVectors):
     #add maxWhiteSpaceLength/X0 matches top/bot
     maxWhiteSpaceLengthMatches = [] #counts if row on top/bot have same maxWhiteSpaceLength
     maxWhiteSpaceX0Matches = []
+    space_threshhold = 5
     for index, row in df.iterrows():
         length = row["biggestWhitespaceLength"]
         x0 = row["biggestWhitespaceX0"]
         if index == 0:#first row
             nextLength = df.iloc[index + 1]["biggestWhitespaceLength"]
             nextX0 = df.iloc[index + 1]["biggestWhitespaceX0"]
-            if abs(nextLength-length) < 5:
+            if abs(nextLength-length) < space_threshhold:
                 lengthMatches = 1
             else:
                 lengthMatches = 0
-            if abs(nextX0-x0) < 5:
+            if abs(nextX0-x0) < space_threshhold:
                 x0Matches = 1
             else:
                 x0Matches = 0
         elif index == (len(df.index)-1):#last row
             previousLength = df.iloc[index - 1]["biggestWhitespaceLength"]
             previousX0 = df.iloc[index - 1]["biggestWhitespaceX0"]
-            if abs(previousLength - length) < 5:
+            if abs(previousLength - length) < space_threshhold:
                 lengthMatches = 1
             else:
                 lengthMatches = 0
-            if abs(previousX0 - x0) < 5:
+            if abs(previousX0 - x0) < space_threshhold:
                 x0Matches = 1
             else:
                 x0Matches = 0
         else:
             previousLength = df.iloc[index - 1]["biggestWhitespaceLength"]
             previousX0 = df.iloc[index - 1]["biggestWhitespaceX0"]
-            if abs(previousLength - length) < 5:
+            if abs(previousLength - length) < space_threshhold:
                 lengthMatches = 1
             else:
                 lengthMatches = 0
-            if abs(previousX0 - x0) < 5:
+            if abs(previousX0 - x0) < space_threshhold:
                 x0Matches = 1
             else:
                 x0Matches = 0
 
             nextLength = df.iloc[index + 1]["biggestWhitespaceLength"]
             nextX0 = df.iloc[index + 1]["biggestWhitespaceX0"]
-            if abs(nextLength - length) < 5:
+            if abs(nextLength - length) < space_threshhold:
                 lengthMatches += 1
-            if abs(nextX0 - x0) < 5:
+            if abs(nextX0 - x0) < space_threshhold:
                 x0Matches += 1
         maxWhiteSpaceLengthMatches.append(lengthMatches)
         maxWhiteSpaceX0Matches.append(x0Matches)
@@ -295,4 +323,5 @@ def main(folder):
 
 
 if __name__ =="__main__":
-    main("../assets/müllerData")
+    marke = "müller"
+    main("../assets/"+marke+"Data")

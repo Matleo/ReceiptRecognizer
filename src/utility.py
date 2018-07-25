@@ -61,7 +61,9 @@ def plotImgWithBox(jsonPath, imgPath, scope):
     im.show()
 
 if __name__ =="__main__":
-    name = "tx_330_2"
-    jsonPath = "../assets/müllerData/"+name+"-40.webp.json"
-    imgPath = "../assets/müllerData/" + name + ".jpg"
-    plotImgWithBox(jsonPath, imgPath,scope="elements")
+    nummer = "10"
+    name = "tx_"+nummer+"_2"
+    folder = "müllerData"
+    jsonPath = "../assets/"+folder+"/"+name+"-40.webp.json"
+    imgPath = "../assets/"+folder+"/" + name + ".jpg"
+    plotImgWithBox(jsonPath, imgPath, scope="rows")

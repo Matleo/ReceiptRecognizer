@@ -1,25 +1,22 @@
 import sys
 import os
 from PyQt5.QtWidgets import QApplication, QDesktopWidget, QMainWindow, QAction, qApp, QMenu, QLabel, QScrollArea, QFileDialog
-from PyQt5.QtGui import QIcon, QPixmap, QPainter, QPen, QColor, QBrush
+from PyQt5.QtGui import QIcon, QPixmap, QPainter, QPen, QColor, QBrush, QTransform
 from PyQt5.QtCore import Qt
 from src.preprocessing import get_df
 from random import randint
+from PIL import Image
+import shutil
 
 class LabelWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
 
-        self.folder = str(QFileDialog.getExistingDirectory(self, "Select Directory"))
+        self.folder = str(QFileDialog.getExistingDirectory(self, "Select Directory","../assets"))
         self.imgNames = self.searchImgNames(self.folder)#the names of jpg files
-        self.imgCount = 0 #keep track on which file we are
-        self.path = self.folder+"/"+self.imgNames[0]+".jpg"
-        self.pixmap = QPixmap(self.path)
-
-        jsonPath = self.folder + "/" + self.imgNames[0] + "-40.webp.json"
-        self.df = get_df(jsonPath)
-        self.df["rowClass"] = 0 #set all classes to 0
+        self.imgCount = -1 #keep track on which file we are
+        self.nextImg()
 
         self.minMouseY = None
         self.maxMouseY = 0
@@ -27,7 +24,6 @@ class LabelWindow(QMainWindow):
         self.initUI()
 
     def initUI(self):
-        self.setImageWidget()
 
         self.statusBar().showMessage('Ready')
 
@@ -54,25 +50,37 @@ class LabelWindow(QMainWindow):
         saveAct.setShortcut('Ctrl+S')
         saveAct.setStatusTip('Save Classes and also opens next image')
         saveAct.triggered.connect(self.saveClasses)
+        self.toolbar = self.addToolBar('Save')
+        self.toolbar.addAction(saveAct)
 
         refreshAct = QAction(QIcon('../assets/img/refresh.jpg'), 'Refresh', self)
         refreshAct.setShortcut('Ctrl+R')
         refreshAct.setStatusTip('Refresh picture')
         refreshAct.triggered.connect(self.refreshPic)
+        self.toolbar = self.addToolBar('Refresh')
+        self.toolbar.addAction(refreshAct)
+
+        rotateAct = QAction(QIcon('../assets/img/rotate.png'), 'Rotate', self)
+        rotateAct.setShortcut('Ctrl+T')
+        rotateAct.setStatusTip('Rotate picture 180°')
+        rotateAct.triggered.connect(self.rotatePic)
+        self.toolbar = self.addToolBar('Rotate')
+        self.toolbar.addAction(rotateAct)
+
+        removeAct = QAction(QIcon('../assets/img/remove.png'), 'Remove', self)
+        removeAct.setShortcut('Ctrl+D')
+        removeAct.setStatusTip('Moves image to garbage folder')
+        removeAct.triggered.connect(self.removeImg)
+        self.toolbar = self.addToolBar('Remove')
+        self.toolbar.addAction(removeAct)
 
         exitAct = QAction(QIcon('../assets/img/exit.png'), 'Exit', self)
         exitAct.setShortcut('Ctrl+Q')
         exitAct.setStatusTip('Exit application')
         exitAct.triggered.connect(qApp.quit)
-
-        self.toolbar = self.addToolBar('Save')
-        self.toolbar.addAction(saveAct)
-
-        self.toolbar = self.addToolBar('Refresh')
-        self.toolbar.addAction(refreshAct)
-
         self.toolbar = self.addToolBar('Exit')
         self.toolbar.addAction(exitAct)
+
 
     def contextMenuEvent(self, event):
         cmenu = QMenu(self)
@@ -188,37 +196,64 @@ class LabelWindow(QMainWindow):
         self.setImageWidget()
 
     def saveClasses(self):
-        name = self.imgNames[self.imgCount]+"_label"
-        picklePath = self.folder + "/" + name + ".pkl"
+        name = self.imgNames[self.imgCount]
+        picklePath = self.folder + "/" + name + "_label.pkl"
         label_df = self.df[["plainText","rowClass"]]
         label_df.to_pickle(picklePath) #save labeled df
-        self.imgCount += 1
 
         #print(self.df.to_string())
         print(self.df.to_string())
         print("pickled to: "+picklePath)
         print("-----------------------------------------------")
-        if self.imgCount < len(self.imgNames):
-            name = self.imgNames[self.imgCount]
-            jsonPath = self.folder + "/" + name + "-40.webp.json"
-            self.df = get_df(jsonPath)
-            self.df["rowClass"] = 0  # set all classes to 0
-
-            self.path = self.folder + "/" + name + ".jpg"
-            self.pixmap = QPixmap(self.path)
-            self.setImageWidget()
-            print("opened next image at: " + self.path)
+        if self.imgCount+1 < len(self.imgNames):
+            self.nextImg()
         else:
             print("Done labeling all available images!")
             qApp.exit()
 
-    def searchImgNames(selfself, folder):
+    def nextImg(self):
+        self.imgCount += 1
+        name = self.imgNames[self.imgCount]
+        self.path = self.folder + "/" + name + ".jpg"
+        print("opening next image at: " + self.path)
+
+        jsonPath = self.folder + "/" + name + "-40.webp.json"
+        self.df = get_df(jsonPath)
+        self.df["rowClass"] = 0  # set all classes to 0
+
+        self.pixmap = QPixmap(self.path)
+        self.setImageWidget()
+
+    def searchImgNames(self, folder):
         names = []
         for file in os.listdir(folder):
             if file.endswith(".jpg"):
-                names.append(file.split(".jpg")[0])
+                name = file.split(".jpg")[0]
+                picklePath = self.folder + "/" + name + "_label.pkl"
+                if not os.path.isfile(picklePath):
+                    names.append(name)
         return names
 
+    def removeImg(self):
+        print("removing picture: " +self.path)
+        jsonPath = self.folder + "/" + self.imgNames[self.imgCount] + "-40.webp.json"
+        pic_path_dest = self.folder+"/garbage/"+self.imgNames[self.imgCount]+".jpg"
+        json_path_dest = self.folder+"/garbage/"+self.imgNames[self.imgCount]+ "-40.webp.json"
+
+        shutil.move(self.path, pic_path_dest)
+        shutil.move(jsonPath, json_path_dest)
+
+        if self.imgCount+1 < len(self.imgNames):
+            self.nextImg()
+        else:
+            print("Done labeling all available images!")
+            qApp.exit()
+
+    def rotatePic(self):
+        im = Image.open(self.path)
+        im.rotate(180).save(self.path)
+        self.pixmap = QPixmap(self.path)
+        self.setImageWidget()
 
 
 if __name__=="__main__":
