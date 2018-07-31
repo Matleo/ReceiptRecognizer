@@ -1,6 +1,7 @@
 import pandas
 import pickle
 import json
+import sys
 import re
 from preprocessing import get_df
 from pprint import pprint
@@ -50,86 +51,229 @@ class DataAnalyser():
         return rows
 
     def analyseRows(self,rows):
+        #articles:
+        articles = self.analyse_Articles(rows["articles"])
+        sum = self.analyse_Sums(rows["sums"])
+        vats = self.analyse_Vats(rows["vats"])
+        if len(rows["vatSums"]) >0:
+            vatSum = self.analyse_vatsums(rows["vatSums"])
+        else:
+            vatSum = []
+
+        result = {"articles": articles, "sum": sum, "vats": vats, "vatSum": vatSum}
+        return result
+
+    def analyse_Articles(self,articleTexts):
         articles = []
-        for articleText in rows["articles"]:
-            print(articleText)
-            float_regex = "(\d+ \. \d{1,2})|(\d+ , \d{1,2})"
-            floats = re.findall(float_regex, articleText)
-            #find price and description
-            if len(floats) == 0:
+        for articleText in articleTexts:
+            floatStrings = self.findFloatStrings(articleText)
+            # find price and description
+            if len(floatStrings) == 0:
                 description = articleText
-                price = "not found"
-            elif len(floats) == 1:
-                priceTuple = floats[0]
-                for p in priceTuple:
-                    price = p #finds the one that exists
-                    if "- "+price in articleText:
-                        price = "- "+price
-                description = articleText.replace(price,"")#delete price from description
-            else:
-                priceTuple = floats[-1] #get last priceTuple
-                for p in priceTuple:
-                    price = p #finds the one that exists
-                    if "- "+price in articleText:
-                        price = "- "+price
-                #remove last two floats from description
-                description = articleText
-                for priceTuple in floats[-2:]:
-                    for p in priceTuple:
-                        if "- " + p in articleText:
-                            description = description.replace("- " + p, "")
-                        else:
-                            description = description.replace(p,"")
-            price = price.replace(" ","")#remove spaces
+                price = "unknown"
+            elif len(floatStrings) == 1:
+                price = self.convertFloat(floatStrings[0]) # convert to float
+                description = articleText.replace(floatStrings[0], "")  # delete price from description
+            elif len(floatStrings) == 2:
+                price = self.convertFloat(floatStrings[1])
+                # remove last two floats from description
+                description = self.removeFloats(articleText, floatStrings[-2:])
+            else: #min 3 floats
+                price = self.convertFloat(floatStrings[-1])
+                # remove last three from description
+                description = self.removeFloats(articleText, floatStrings[-3:])
 
-
-            #find vat class
+            # find vat class
             found = False
             if description[-2].lower() == "a":
-                vat = "a"
+                vat = "A"
                 description = description[:-2]
                 found = True
             elif description[-2].lower() == "b":
-                vat = "b"
+                vat = "B"
                 description = description[:-2]
                 found = True
-            #if ends with aw or ap
-            if (description[-3].lower() == "a") & (description[-2].lower() in ["w","p"]):
-                vat = "a"
+            # if ends with aw or ap
+            if (description[-3].lower() == "a") & (description[-2].lower() in ["w", "p"]):
+                vat = "A"
                 description = description[:-3]
                 found = True
-            elif (description[-3].lower() == "b") & (description[-2].lower() in ["w","p"]):
-                vat = "b"
+            elif (description[-3].lower() == "b") & (description[-2].lower() in ["w", "p"]):
+                vat = "B"
                 description = description[:-3]
                 found = True
             if not found:
-                vat = "not found"
-            article = {"description":description, "price":price, "vat":vat}
+                vat = "---unknown---"
+            article = {"description": description, "price": price, "vat": vat}
             articles.append(article)
-        result = {"articles":articles}
-        return result
+        return articles
 
-def main():
-    classifierPath = "../assets/classifier.pkl"
+    def analyse_Sums(self,sumTexts):
+        if len(sumTexts) > 1:
+            print("------------------------------------")
+            print("Allert: more then 1 sum row detected")
+            print("------------------------------------")
+        sum = self.findFloatStrings(sumTexts[0])
+        if len(sum) > 0:
+            sum = self.convertFloat(sum[0])
+        else:
+            #assume comma wasnt recognized
+            regex = "\d+"
+            float_matches = re.findall(regex, sumTexts[0])
+            if len(float_matches) != 2:
+                print("------------------------------------")
+                print("Alert: No comma and not two numbers were found in sum row")
+                print(sumTexts[0])
+                print("------------------------------------")
+            sum = float_matches[0]+"."+float_matches[1]
+            sum = self.convertFloat(sum)
+
+        return sum
+
+    def analyse_Vats(self, vatTexts):
+        vats = []
+        for vatText in vatTexts:
+            #find all float values in string:
+            floatStrings = self.findFloatStrings(vatText)
+            floats = []
+            for floatString in floatStrings:
+                f = self.convertFloat(floatString)
+                floats.append(f)
+            #find vat class (a|b)
+            vatClass = vatText[0].upper()
+
+            if len(floats) < 3:
+                vat = {"netto": "unknown", "brutto": "unknown", "class": vatClass}
+                print("------------------------------------")
+                print("Alert: Less then 3 floats in vat row found")
+                print(vatText)
+                print("------------------------------------")
+            else:
+                if len(floats) > 4:
+                    print("------------------------------------")
+                    print("Alert: More then 4 floats in vat row found")
+                    print(vatText)
+                    print("------------------------------------")
+
+                if len(floats) == 4:#then remove the 7,00 / 19,00
+                    if (7.00 in floats) & (19.00 in floats):
+                        print("------------------------------------")
+                        print("Alert: found 4 floats in vat. It contains 7.00 aswell as 14.00")
+                        print(vatText)
+                        print("------------------------------------")
+                        floats = floats[1:] # remove first float, assuming this is mehrwertsteuersatz
+                    elif 7.00 in floats:
+                        floats.remove(7.00)
+                    elif 19.00 in floats:
+                        floats.remove(19.00)
+
+                # if there are negative values:
+                negVals = False
+                if any(f < 0 for f in floats):
+                    negVals = True
+                    for i in range(len(floats)):
+                        floats[i] = -1 * floats[i]
+
+                mwst = min(floats)
+                brutto = max(floats)
+                netto = [f for f in floats if f not in [mwst,brutto]][0] #get the value that is not mwst or brutto
+                if not round(brutto - mwst,2) == netto:
+                    print("------------------------------------")
+                    print("Alert: Brutto - MwSt != Netto")
+                    print(vatText)
+                    print("------------------------------------")
+
+                #turn neg values back into neg values
+                if negVals:
+                    for i in range(len(floats)):
+                        floats[i] = -1 * floats[i]
+
+                vat = {"netto": netto, "brutto": brutto, "class": vatClass}
+            vats.append(vat)
+        return vats
+
+    def analyse_vatsums(self, vatsumTexts):
+        if len(vatsumTexts) > 1:
+            print("------------------------------------")
+            print("Alert: more than 1 vat sum found")
+            print("------------------------------------")
+        floats = self.findFloatStrings(vatsumTexts[0])
+        for i in range(len(floats)):
+            floats[i] = self.convertFloat(floats[i])
+
+        if len(floats) != 3:
+            vatSum = {"netto":"unknown", "brutto":"unknown"}
+        else:
+            mwst = min(floats)
+            brutto = max(floats)
+            netto = [f for f in floats if f not in [mwst, brutto]][0]  # get the value that is not mwst or brutto
+            vatSum = {"netto": netto, "brutto": brutto}
+        return vatSum
+
+    def findFloatStrings(self, text):
+        float_regex = "(\d+ \. \d{1,2})|(\d+ , \d{1,2})"
+        pos_matches = re.finditer(float_regex, text)
+        positions = [(m.start(0)) for m in pos_matches]
+
+        float_matches = re.findall(float_regex, text)
+        float_values = []
+        for tuple in float_matches:
+            value = [f for f in tuple if not f == ""][0]
+            float_values.append(value)
+
+        myFloats = []
+        for i in range(len(float_values)):
+            pos = positions[i]
+            val = float_values[i]
+            if text[pos-2] == "-":
+                val = "- " + val
+            myFloat = val
+            myFloats.append(myFloat)
+        return myFloats
+
+    def convertFloat(self, floatString):
+        fl = floatString.replace(" ","")
+        fl = fl.replace(",",".")
+        fl = float(fl)
+        return fl
+
+    def removeFloats(self,articleText, floatStrings):
+        description = articleText
+        i = 0
+        iterateThrough = False
+        while i < len(floatStrings):
+            floatString = floatStrings[i]
+            # if this is negative float it might have gotten its abs value removed before
+            if (i > 0) & ("-" in floatString) & (not iterateThrough):
+                description = articleText
+                i = -1  # start loop from beginning
+                iterateThrough = True # dont check if in description again
+            description = description.replace(floatString, "")
+            i += 1
+        return description
+
+def main(jsonPath):
+    classifierPath = "../classifier.pkl"
     analyser = DataAnalyser(classifierPath)
 
-    jsonPath = "../assets/tx_111_2-40.webp.json"
     result = analyser.analyse(jsonPath)
 
     print("articles:")
     pprint(result["articles"])
     print()
-    '''
-    print("sums:")
-    pprint(result["sums"])
+    print("sum:")
+    pprint(result["sum"])
     print()
     print("vats:")
     pprint(result["vats"])
     print()
-    print("vatSums:")
-    pprint(result["vatSums"])
+    print("vatSum:")
+    pprint(result["vatSum"])
     print()
-    '''
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv)>0:
+        jsonPath = sys.argv[1]
+    else:
+        jsonPath = "../assets/müllerData/tx_17_2-40.webp.json"
+    main(jsonPath)

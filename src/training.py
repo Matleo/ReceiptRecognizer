@@ -48,6 +48,7 @@ def test(df, forest, plainText, jsonPath):
 
 
 def train_full_save(folders, dropFeatures):
+    print("Training with full set...")
     dfs = []
     for folder in folders:
         dfs.extend(readDFs(folder))
@@ -61,8 +62,11 @@ def train_full_save(folders, dropFeatures):
     full_df = full_df.drop(columns=dropFeatures)
 
     classifier = train(full_df)
-    with open(folders[0]+"/../classifier.pkl","wb") as outfile:
+    classifierPickle = "../classifier.pkl"
+    classifierPickle = os.path.abspath(classifierPickle)
+    with open(classifierPickle,"wb") as outfile:
         pickle.dump(classifier, outfile)
+    print("Pickled classifier to: "+classifierPickle)
 
     return classifier
 
@@ -200,7 +204,7 @@ if __name__ == "__main__":
 
     müller = "../assets/müllerData"
     edeka = "../assets/edekaData"
-    folders = [müller,edeka]
+    folders = [müller, edeka]
 
     #train_test_analyse(folders,options, dropFeatures)
     classifier = train_full_save(folders, dropFeatures)
