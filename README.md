@@ -1,12 +1,12 @@
 # Receipt Recognizer Documentation
 ## Introduction
-This Project got developed by Matthias Leopold for the [RFND AG](http://rfnd.com/).
-The aim is to design a machine learning model, that can recognize any given receipt (to some extend). Therefore, recognize every article with its respective price, description, amount and vat class, as well as total price and total vat sums.
+This Project was developed by Matthias Leopold for the [RFND AG](http://rfnd.com/).
+The goal is to design a machine learning model, that can recognize any given receipt (to some extend). Therefore, it needs to recognize every article with its respective price, description, amount and vat class, as well as total price and vat sums.
 
-Current status: Working on Edeka + Müller datasets. Given the Google Vision OCR-Results (further processed by Matthias), we are able to classify >99,8% of the rows correctly and extract the structured data from the rows procedural (which works good).
+Current status: Working on Edeka + Müller datasets. Given the Google Vision OCR-Results (further processed by Matthias), we are able to classify >99,8% of the rows correctly and extract the structured data from the rows procedural (which works decently good).
 
 ## Project structure
-In the following i will describe the meaning and content of each directory
+In the following i will describe the content of each directory
 ### assets
 This folder is not included in git and holds the data (for each receipt), which includes the images, Matthias' OCR-results, the labels for each row (created with the labeling tool) and the preprocessed dataframes (containing the features).
 ### research
@@ -22,7 +22,18 @@ This is the source folder and contains the actual python source code. Following,
 This file in the root directory is the serialized Random Forest that was trained on the full edeka/müller data set. It is used in the *service.py*.
 
 ## Get started using the service
-After cloning this repository, you can call the service by passing the path of the JSON file (Matthias' OCR-Result), that you want to be analysed, as command line argument. For example:
+### Installing dependencies with pip
+The *service.py* uses three external libraries: **pandas**,**sklearn**, **scipy**. Those three can be installed (optionally into a virtualenv) with pip:
+```
+pip install pandas sklearn scipy
+```
+or
+```
+python -m pip install pandas sklearn scipy
+```
+
+### Running the service
+Afterwards, you can call the service by passing the path of the JSON file (Matthias' OCR-Result), that you want to be analysed, as command line argument. For example:
 ```
 python service.py C:/Users/matthias/ReceiptRecognozer/assets/müllerData/tx_17_2-40.webp.json
 ```

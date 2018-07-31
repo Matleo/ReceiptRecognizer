@@ -272,7 +272,7 @@ def main(jsonPath):
     print()
 
 if __name__ == "__main__":
-    if len(sys.argv)>0:
+    if len(sys.argv) > 1:
         jsonPath = sys.argv[1]
     else:
         jsonPath = "../assets/müllerData/tx_17_2-40.webp.json"
