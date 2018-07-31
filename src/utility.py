@@ -4,6 +4,8 @@ import itertools
 from preprocessing import readRows
 from PIL import Image, ImageDraw
 from random import randint
+import os
+import service
 
 np.set_printoptions(precision=2)
 
@@ -60,10 +62,41 @@ def plotImgWithBox(jsonPath, imgPath, scope):
                 draw.rectangle(coordinates, outline=rndColor)
     im.show()
 
+def countVatClasses(folder, limit):
+    names = []
+    for file in os.listdir(folder):
+        if file.endswith(".jpg"):
+            name = file.split(".jpg")[0]
+            number = name.split("_")[1]
+            if int(number) <= limit:
+                names.append(name)
+    countA = 0
+    countB = 0
+    for name in names:
+        print(name)
+        jsonPath = folder+"/"+name+"-40.webp.json"
+        result = service.main(jsonPath)
+        articles = result["articles"]
+        for article in articles:
+            vat = article["vat"]
+            if vat.lower() == "a":
+                countA += 1
+            if vat.lower() == "b":
+                countB += 1
+    print("------------------------")
+    print("countA: " + str(countA))
+    print("countB: " + str(countB))
+
+
 if __name__ =="__main__":
+    '''
     nummer = "244"
     name = "tx_"+nummer+"_2"
     folder = "edekaData"
     jsonPath = "../assets/"+folder+"/"+name+"-40.webp.json"
     imgPath = "../assets/"+folder+"/" + name + ".jpg"
     plotImgWithBox(jsonPath, imgPath, scope="elements")
+    '''
+    folder = "../assets/edekaData"
+    upto_limit = 270
+    countVatClasses(folder, upto_limit)

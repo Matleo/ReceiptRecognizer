@@ -10,12 +10,12 @@ In the following i will describe the content of each directory
 ### assets
 This folder is not included in git and holds the data (for each receipt), which includes the images, Matthias' OCR-results, the labels for each row (created with the labeling tool) and the preprocessed dataframes (containing the features).
 ### research
-This folder contains experimental work and some statistics. Most interesting might be the file *vatClass_confusion_stats.xslx*, in which i have documented with which character the Google Vision-OCR confuses the actual vat classes (last char in an article row). 
+This folder contains experimental work and some statistics. Most interesting might be the file *vatClass_confusion_stats.xslx*, in which i have documented with which character the Google Vision-OCR confuses the actual vat classes (last char in an article row). On the basis of these statistics, we can easily handle most of the OCR miss-recognitions of the vat class.
 ### src
 This is the source folder and contains the actual python source code. Following, i will shortly descripe its content:
 * **labeler.py:** Tool to label the rows for a given receipt (img + OCR-Result)
 * **preprocessing.py:** Script, that calculates the features for each row, given the OCR-Result. I append the labels for the rows here as well.
-* **service.py:** The callable service, that takes the trained model/classifier and an OCR-Result of an image and returns structured data for the given receipt. The structured data consists of articles (description, price, vat-Class), totalSum, vatSums(netto, brutto, vat-Class), totalVatSum(netto,brutto).
+* **service.py:** The callable service, that takes the trained model/classifier and an OCR-Result of an image and returns structured data for the given receipt. The structured data consists of articles (description, price, vat-Class), totalSum, vatSums(netto, brutto, vat-Class, tax-rate), totalVatSum(netto,brutto).
 * **training.py:** The script that takes a given set of preprocessed dataframes (containing the features) and trains the machine learning model/classifier. For now a Random Forest is trained.
 * **utility.py:** Utility functions, used for experiments and in *training.py*
 ### classifier.pkl
@@ -65,10 +65,9 @@ sum:
 46.54
 
 vats:
-[{'brutto': 3.0, 'class': 'B', 'netto': 2.8},
- {'brutto': 43.54, 'class': 'A', 'netto': 36.59}]
+[{'brutto': 3.0, 'class': 'B', 'netto': 2.8, 'taxRate': 7.0},
+ {'brutto': 43.54, 'class': 'A', 'netto': 36.59, 'taxRate': 19.0}]
 
 vatSum:
 {'brutto': 46.54, 'netto': 39.39}
-
 ```

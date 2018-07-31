@@ -85,20 +85,20 @@ class DataAnalyser():
 
             # find vat class
             found = False
-            if description[-2].lower() == "a":
+            if description[-2].lower() in ["a","2","8"]:
                 vat = "A"
                 description = description[:-2]
                 found = True
-            elif description[-2].lower() == "b":
+            elif description[-2].lower() in ["b","5","0"]:
                 vat = "B"
                 description = description[:-2]
                 found = True
             # if ends with aw or ap
-            if (description[-3].lower() == "a") & (description[-2].lower() in ["w", "p"]):
+            if (description[-3].lower() in ["a","2","8"]) & (description[-2].lower() in ["w", "p"]):
                 vat = "A"
                 description = description[:-3]
                 found = True
-            elif (description[-3].lower() == "b") & (description[-2].lower() in ["w", "p"]):
+            elif (description[-3].lower() in ["b","5","0"]) & (description[-2].lower() in ["w", "p"]):
                 vat = "B"
                 description = description[:-3]
                 found = True
@@ -125,8 +125,10 @@ class DataAnalyser():
                 print("Alert: No comma and not two numbers were found in sum row")
                 print(sumTexts[0])
                 print("------------------------------------")
-            sum = float_matches[0]+"."+float_matches[1]
-            sum = self.convertFloat(sum)
+                sum = "unknown"
+            else:
+                sum = float_matches[0]+"."+float_matches[1]
+                sum = self.convertFloat(sum)
 
         return sum
 
@@ -162,10 +164,16 @@ class DataAnalyser():
                         print(vatText)
                         print("------------------------------------")
                         floats = floats[1:] # remove first float, assuming this is mehrwertsteuersatz
+                        taxRate = floats[1]
                     elif 7.00 in floats:
                         floats.remove(7.00)
+                        taxRate = 7.00
                     elif 19.00 in floats:
                         floats.remove(19.00)
+                        taxRate = 19.00
+                elif len(floats) == 3:#edeka
+                    percentage = re.findall(" \d{1,2} %", vatText)[0]
+                    taxRate = float(percentage.replace("%","").replace(" ",""))
 
                 # if there are negative values:
                 negVals = False
@@ -176,7 +184,14 @@ class DataAnalyser():
 
                 mwst = min(floats)
                 brutto = max(floats)
-                netto = [f for f in floats if f not in [mwst,brutto]][0] #get the value that is not mwst or brutto
+                if mwst == 0.0:
+                    print("------------------------------------")
+                    print("Alert: mwst is 0")
+                    print(vatText)
+                    print("------------------------------------")
+                    netto = brutto
+                else:
+                    netto = [f for f in floats if f not in [mwst,brutto]][0] #get the value that is not mwst or brutto
                 if not round(brutto - mwst,2) == netto:
                     print("------------------------------------")
                     print("Alert: Brutto - MwSt != Netto")
@@ -188,7 +203,7 @@ class DataAnalyser():
                     for i in range(len(floats)):
                         floats[i] = -1 * floats[i]
 
-                vat = {"netto": netto, "brutto": brutto, "class": vatClass}
+                vat = {"netto": netto, "brutto": brutto, "class": vatClass, "taxRate":taxRate}
             vats.append(vat)
         return vats
 
@@ -255,8 +270,15 @@ class DataAnalyser():
 def main(jsonPath):
     classifierPath = "../classifier.pkl"
     analyser = DataAnalyser(classifierPath)
-
     result = analyser.analyse(jsonPath)
+    return result
+
+if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        jsonPath = sys.argv[1]
+    else:
+        jsonPath = "../assets/edekaData/tx_515_2-40.webp.json"
+    result = main(jsonPath)
 
     print("articles:")
     pprint(result["articles"])
@@ -270,10 +292,3 @@ def main(jsonPath):
     print("vatSum:")
     pprint(result["vatSum"])
     print()
-
-if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        jsonPath = sys.argv[1]
-    else:
-        jsonPath = "../assets/müllerData/tx_17_2-40.webp.json"
-    main(jsonPath)
