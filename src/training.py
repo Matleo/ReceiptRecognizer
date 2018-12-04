@@ -197,14 +197,14 @@ if __name__ == "__main__":
     dropFeatures = []
     #dropFeatures.extend(["LowerCaseLetters", "wordCount", "width"])
     #dropFeatures.extend(["lastCharDigit", "height", "significantWhitespaces", "whitespaceQuot"])
-    dropFeatures.extend(
-        ["biggestWhitespaceX0", "dots", "lastCharAB", "x0", "eurExists", "distanceBot", "firstCharDigit", "firstCharAB",
-         "otherDigits", "colons", "relativeRowPosition", "y0", "belegExists", "distanceTop", "maxWhiteSpaceX0Matches",
-         "lastCharAWBW", "maxWhiteSpaceLengthMatches"])
+    #dropFeatures.extend(
+    #    ["biggestWhitespaceX0", "dots", "lastCharAB", "x0", "eurExists", "distanceBot", "firstCharDigit", "firstCharAB",
+    #     "otherDigits", "colons", "relativeRowPosition", "y0", "belegExists", "distanceTop", "maxWhiteSpaceX0Matches",
+    #     "lastCharAWBW", "maxWhiteSpaceLengthMatches"])
 
     müller = "../assets/müllerData"
     edeka = "../assets/edekaData"
-    folders = [müller, edeka]
+    folders = [müller]
 
-    #train_test_analyse(folders,options, dropFeatures)
-    classifier = train_full_save(folders, dropFeatures)
+    train_test_analyse(folders,options, dropFeatures)
+    #classifier = train_full_save(folders, dropFeatures)

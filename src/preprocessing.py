@@ -11,42 +11,46 @@ def readRows(jsonPath):
     rows = []
     with open(jsonPath, encoding="utf-8") as f:
         data = json.load(f)
-        for line in data:
+        for line in data["Lines"]:
             row = {}
             row["plainText"] = ""
             row["words"] = []
-            for word in line:
-                row["plainText"] += word["Text"]+" "
-                boundingBox = word["BoundingBox"].split(",")
-                word_x0 = abs(int(boundingBox[0]))
-                word_width = abs(int(boundingBox[2]))
-                word_y0 = abs(int(boundingBox[1]))
-                word_height = abs(int(boundingBox[3]))
+            for word in line["Words"]:
+                if word["IsPhantom"]:
+                    continue
+                char_word =""
+                for char in word["Characters"]:
+                    char_word += char["Text"]
+                row["plainText"] += char_word + " " #after each word
+
+                boundingBox = word["BoundingBox"].split(" ")
+                word_x0 = int(boundingBox[0])
+                word_width = int(boundingBox[2]) - int(boundingBox[0])
+                word_y0 = int(boundingBox[1])
+                word_height = int(boundingBox[3]) - int(boundingBox[1])
                 wordBoundingBox = [word_x0,word_y0,word_width,word_height]
-                row["words"].append({"boundingBox":wordBoundingBox, "text":word["Text"]})
+                row["words"].append({"boundingBox": wordBoundingBox, "text": char_word})
 
-            x0s = []
-            y0s = []
-            #heights =[]
-            x1s = []
-            y1s = []
-            for word in row["words"]:
-                x0s.append(word["boundingBox"][0])
-                y0s.append(word["boundingBox"][1])
-                #heights.append(word["boundingBox"][3])
-                x1s.append(word["boundingBox"][0]+word["boundingBox"][2])
-                y1s.append(word["boundingBox"][1]+word["boundingBox"][3])
-            x0 = min(x0s)
-            y0 = min(y0s)
-            maxX1 = max(x1s)
-            width = maxX1 - x0
-            #height = max(heights)
-            maxY1 = max(y1s)
-            height = maxY1 - y0
-            row["boundingBox"] = [x0,y0,width,height]
-            row["jsonPath"] = jsonPath
-
-            rows.append(row)
+            if row["plainText"] != "":
+                x0s = []
+                y0s = []
+                x1s = []
+                y1s = []
+                for word in row["words"]:
+                    x0s.append(word["boundingBox"][0])
+                    y0s.append(word["boundingBox"][1])
+                    #heights.append(word["boundingBox"][3])
+                    x1s.append(word["boundingBox"][0]+word["boundingBox"][2])
+                    y1s.append(word["boundingBox"][1]+word["boundingBox"][3])
+                x0 = min(x0s)
+                y0 = min(y0s)
+                maxX1 = max(x1s)
+                width = maxX1 - x0
+                maxY1 = max(y1s)
+                height = maxY1 - y0
+                row["boundingBox"] = [x0,y0,width,height]
+                row["jsonPath"] = jsonPath
+                rows.append(row)
     return rows
 
 
@@ -142,7 +146,7 @@ def belegExists(text):
     if len(val) > 0: return True
     else: return False
 def sumExists(text):
-    val = re.findall("summe|sum|total|sunime|suinme|sumine|sumnie>", text.lower())
+    val = re.findall("summe|sum|total|sunime|suinme|sumine|sumnie|bezahlen", text.lower())
     if len(val) > 0: return True
     else: return False
 def firstCharDigit(text):
@@ -310,7 +314,7 @@ def main(folder):
             names.append(file.split(".jpg")[0])
     for i in range(0,len(names)):
         name = names[i]
-        jsonPath = folder + "/" + name + "-40.webp.json"
+        jsonPath = folder + "/" + name + ".jpg.json"
         df = get_df(jsonPath)
         labelPath = folder + "/" + name + "_label.pkl"
         df = append_label(df, labelPath)

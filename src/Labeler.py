@@ -216,7 +216,7 @@ class LabelWindow(QMainWindow):
         self.path = self.folder + "/" + name + ".jpg"
         print("opening next image at: " + self.path)
 
-        jsonPath = self.folder + "/" + name + "-40.webp.json"
+        jsonPath = self.folder + "/" + name + ".jpg.json"
         self.df = get_df(jsonPath)
         self.df["rowClass"] = 0  # set all classes to 0
 
@@ -235,9 +235,9 @@ class LabelWindow(QMainWindow):
 
     def removeImg(self):
         print("removing picture: " +self.path)
-        jsonPath = self.folder + "/" + self.imgNames[self.imgCount] + "-40.webp.json"
+        jsonPath = self.folder + "/" + self.imgNames[self.imgCount] + ".jpg.json"
         pic_path_dest = self.folder+"/garbage/"+self.imgNames[self.imgCount]+".jpg"
-        json_path_dest = self.folder+"/garbage/"+self.imgNames[self.imgCount]+ "-40.webp.json"
+        json_path_dest = self.folder+"/garbage/"+self.imgNames[self.imgCount]+ ".jpg.json"
 
         shutil.move(self.path, pic_path_dest)
         shutil.move(jsonPath, json_path_dest)
