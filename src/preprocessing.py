@@ -56,8 +56,8 @@ def readRows(jsonPath):
 
 #2)RowToFeatures
 def convertRowsToFeatureVectors(rows):
-    #significantWhiteSpace = 3 * avg width of first n found single character boundingBox
-    significantWhiteSpaceWidth = 3 * findSWSW(rows, 5)
+    #significantWhiteSpace = 2.7 * avg width of first n found single character boundingBox
+    significantWhiteSpaceWidth = 2.7 * findSWSW(rows, 5)
 
     featureVectors=[]
     for i in range(0,len(rows)):
