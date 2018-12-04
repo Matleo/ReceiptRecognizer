@@ -16,8 +16,11 @@ class DataAnalyser():
             return classifier
 
     def analyse(self,jsonPath):
+        print("1) Classifying Rows...")
         rows = self.findRows(jsonPath)
+        print("2) Analysing Rows...")
         result = self.analyseRows(rows)
+        print("done\n")
         return result
 
     def findRows(self,jsonPath):
@@ -277,7 +280,7 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         jsonPath = sys.argv[1]
     else:
-        jsonPath = "../assets/edekaData/tx_515_2-40.webp.json"
+        jsonPath = "../../Teseract/assets/müllerData_training/tx_2_2-40.webp.json"
     result = main(jsonPath)
 
     print("articles:")

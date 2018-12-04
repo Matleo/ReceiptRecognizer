@@ -12,7 +12,6 @@ class LabelWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
-
         self.folder = str(QFileDialog.getExistingDirectory(self, "Select Directory","../assets"))
         self.imgNames = self.searchImgNames(self.folder)#the names of jpg files
         self.imgCount = -1 #keep track on which file we are
