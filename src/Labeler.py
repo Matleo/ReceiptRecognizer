@@ -86,12 +86,15 @@ class LabelWindow(QMainWindow):
 
         vat = cmenu.addAction("vat")
         vatSum = cmenu.addAction("vatSum")
+        ignore = cmenu.addAction("ignore")
         action = cmenu.exec_(self.mapToGlobal(event.pos()))
 
         if action == vat:
             self.selectRow(event, "vat")
         elif action == vatSum:
             self.selectRow(event, "vatSum")
+        elif action == ignore:
+            self.selectRow(event, "ignore")
 
     def setImageWidget(self):
         #draw rectangles on img
@@ -146,6 +149,9 @@ class LabelWindow(QMainWindow):
                 elif classSelected == "vatSum":
                     col = QColor("yellow")
                     self.df.at[i, "rowClass"] = 4
+                elif classSelected == "ignore":
+                    col = QColor("black")
+                    self.df.at[i, "rowClass"] = -1
                 painterInstance.fillRect(row["x0"], row["y0"], row["width"], row["height"],
                                          QBrush(col, 5))
                 self.paint(scrolled_y0)  # shows the modified pixelmap

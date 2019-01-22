@@ -15,6 +15,11 @@ def readDFs(folder):
         if file.endswith(".jpg"):
             name = file.split(".jpg")[0]
             df = pd.read_pickle(folder+"/"+name+"_df.pkl")
+            # delete all ignored rows
+            for index, row in df[::-1].iterrows():
+                if row["rowClass"] == -1:
+                    df = df.drop(df.index[index])
+
             dfs.append(df)
     return dfs
 
@@ -39,7 +44,7 @@ def test(df, forest, plainText, jsonPath):
     wrongClassifications = []
     for i in range(0, len(labels)):
         if labels[i] != label_predictions[i]:
-            wrongClass = {"plainText":plainText[i], "jsonPath":jsonPath[i], "label": labels[i], "prediction": label_predictions[i]}
+            wrongClass = {"plainText": plainText[i], "jsonPath": jsonPath[i], "label": labels[i], "prediction": label_predictions[i]}
             wrongClassifications.append(wrongClass)
 
     cnf_matrix = confusion_matrix(labels, label_predictions)
@@ -66,7 +71,7 @@ def train_full_save(folders, dropFeatures):
     classifierPickle = os.path.abspath(classifierPickle)
     with open(classifierPickle,"wb") as outfile:
         pickle.dump(classifier, outfile)
-    print("Pickled classifier to: "+classifierPickle)
+    print("Pickled classifier to: " + classifierPickle)
 
     return classifier
 
@@ -191,20 +196,16 @@ def train_test_analyse(folders, options, dropFeatures):
 if __name__ == "__main__":
     printImportance = True
     printWrongClassifications = True
-    plotConfustionMatrix = True
+    plotConfustionMatrix = False
     options = [printImportance, printWrongClassifications, plotConfustionMatrix]
 
     dropFeatures = []
-    #dropFeatures.extend(["LowerCaseLetters", "wordCount", "width"])
-    #dropFeatures.extend(["lastCharDigit", "height", "significantWhitespaces", "whitespaceQuot"])
-    #dropFeatures.extend(
-    #    ["biggestWhitespaceX0", "dots", "lastCharAB", "x0", "eurExists", "distanceBot", "firstCharDigit", "firstCharAB",
-    #     "otherDigits", "colons", "relativeRowPosition", "y0", "belegExists", "distanceTop", "maxWhiteSpaceX0Matches",
-    #     "lastCharAWBW", "maxWhiteSpaceLengthMatches"])
+    dropFeatures.extend(["belegExists"])
+    #dropFeatures.extend(["belegExists","lastCharAWBW","eurExists","y0","distanceTop","otherDigits","height","x0","firstCharDigit","lastCharDigit","distanceBot"])
 
     müller = "../assets/müllerData"
     edeka = "../assets/edekaData"
     folders = [müller]
 
-    train_test_analyse(folders,options, dropFeatures)
-    #classifier = train_full_save(folders, dropFeatures)
+    #train_test_analyse(folders,options, dropFeatures)
+    classifier = train_full_save(folders, dropFeatures)

@@ -5,6 +5,7 @@ import sys
 import re
 from preprocessing import get_df
 from pprint import pprint
+from glob import glob
 
 class DataAnalyser():
     def __init__(self,classifierPath):
@@ -16,23 +17,15 @@ class DataAnalyser():
             return classifier
 
     def analyse(self,jsonPath):
-        print("1) Classifying Rows...")
         rows = self.findRows(jsonPath)
-        print("2) Analysing Rows...")
         result = self.analyseRows(rows)
-        print("done\n")
         return result
 
     def findRows(self,jsonPath):
         df = get_df(jsonPath)
         plainText = df["plainText"]
         dropFeatures = ["plainText", "jsonPath"]
-        dropFeatures.extend(
-            ["biggestWhitespaceX0", "dots", "lastCharAB", "x0", "eurExists", "distanceBot", "firstCharDigit",
-             "firstCharAB",
-             "otherDigits", "colons", "relativeRowPosition", "y0", "belegExists", "distanceTop",
-             "maxWhiteSpaceX0Matches",
-             "lastCharAWBW", "maxWhiteSpaceLengthMatches"])
+        dropFeatures.extend(["belegExists"])
         df = df.drop(columns=dropFeatures)
         label_predictions = self.classifier.predict(df)
 
@@ -147,10 +140,10 @@ class DataAnalyser():
             #find vat class (a|b)
             vatClass = vatText[0].upper()
 
-            if len(floats) < 3:
+            if len(floats) <= 3:
                 vat = {"netto": "unknown", "brutto": "unknown", "class": vatClass}
                 print("------------------------------------")
-                print("Alert: Less then 3 floats in vat row found")
+                print("Alert: Less then 4 floats in vat row found (" + str(len(floats))+")")
                 print(vatText)
                 print("------------------------------------")
             else:
@@ -162,10 +155,6 @@ class DataAnalyser():
 
                 if len(floats) == 4:#then remove the 7,00 / 19,00
                     if (7.00 in floats) & (19.00 in floats):
-                        print("------------------------------------")
-                        print("Alert: found 4 floats in vat. It contains 7.00 aswell as 14.00")
-                        print(vatText)
-                        print("------------------------------------")
                         floats = floats[1:] # remove first float, assuming this is mehrwertsteuersatz
                         taxRate = floats[1]
                     elif 7.00 in floats:
@@ -174,7 +163,7 @@ class DataAnalyser():
                     elif 19.00 in floats:
                         floats.remove(19.00)
                         taxRate = 19.00
-                elif len(floats) == 3:#edeka
+                elif len(floats) == 3:#edeka (auskommentiert)
                     percentage = re.findall(" \d{1,2} %", vatText)[0]
                     taxRate = float(percentage.replace("%","").replace(" ",""))
 
@@ -229,16 +218,20 @@ class DataAnalyser():
         return vatSum
 
     def findFloatStrings(self, text):
-        float_regex = "(\d+ \. \d{1,2})|(\d+ , \d{1,2})"
+        text = text.replace("O","0") #because zero doesnt exist in Model. Everything is big O
+
+        float_regex = "(\d+\.\d{1,2})|(\d+,\d{1,2})"
         pos_matches = re.finditer(float_regex, text)
         positions = [(m.start(0)) for m in pos_matches]
 
+        #find all floating numbers
         float_matches = re.findall(float_regex, text)
         float_values = []
         for tuple in float_matches:
             value = [f for f in tuple if not f == ""][0]
             float_values.append(value)
 
+        #check for negative floats.
         myFloats = []
         for i in range(len(float_values)):
             pos = positions[i]
@@ -246,11 +239,13 @@ class DataAnalyser():
             if text[pos-2] == "-":
                 val = "- " + val
             myFloat = val
+            myFloat = myFloat.replace("0","O") #convert back to be able to be found in original String
             myFloats.append(myFloat)
         return myFloats
 
     def convertFloat(self, floatString):
         fl = floatString.replace(" ","")
+        fl = fl.replace("O","0")
         fl = fl.replace(",",".")
         fl = float(fl)
         return fl
@@ -270,19 +265,7 @@ class DataAnalyser():
             i += 1
         return description
 
-def main(jsonPath):
-    classifierPath = "../classifier.pkl"
-    analyser = DataAnalyser(classifierPath)
-    result = analyser.analyse(jsonPath)
-    return result
-
-if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        jsonPath = sys.argv[1]
-    else:
-        jsonPath = "../../Teseract/assets/müllerData_training/tx_2_2-40.webp.json"
-    result = main(jsonPath)
-
+def printResult(result):
     print("articles:")
     pprint(result["articles"])
     print()
@@ -295,3 +278,74 @@ if __name__ == "__main__":
     print("vatSum:")
     pprint(result["vatSum"])
     print()
+
+def analyseSingleFile(jsonPath, classifierPath):
+    analyser = DataAnalyser(classifierPath)
+    result = analyser.analyse(jsonPath)
+    printResult(result)
+
+# perfect :=     sum of Articles == vatSum == Sum of Vats == sum
+# good :=        vatSum == Sum of Vats == sum
+# insufficient
+def analyseResult(result):
+    articleSum = 0
+    for article in result["articles"]:
+        if article["price"] != "unknown":
+            articleSum += article["price"]
+    sumOfVats = 0
+    for vat in result["vats"]:
+        if(vat["brutto"] != "unknown"):
+            sumOfVats += vat["brutto"]
+    if len(result["vatSum"]) > 0:
+        vatSum = result["vatSum"]["brutto"]
+    sum = result["sum"]
+
+    #if vatSum exists
+    if len(result["vatSum"]) > 0:
+        if articleSum == vatSum == sumOfVats == sum:
+            return "perfect"
+        if vatSum == sumOfVats == sum:
+            return "good"
+    else:# if not disregard in comparison
+        if articleSum == sumOfVats == sum:
+            return "perfect"
+        if sumOfVats == sum:
+            return "good"
+    return "insufficient"
+
+def parseBatch(folder, classifierPath):
+    analyser = DataAnalyser(classifierPath)
+
+    files = glob(folder+"/*.json")
+    resultRatings = {}
+    for jsonPath in files:
+        jsonPath = jsonPath.replace("\\","/")
+        result = analyser.analyse(jsonPath)
+        resultRating = analyseResult(result)
+        tx = jsonPath.replace(folder+"/", "").replace(".jpg.json","")
+        print(tx)
+        resultRatings[tx] = resultRating
+    print()
+
+    perfectCount = 0
+    goodCount = 0
+    insufficientCount = 0
+    for tx, rating in resultRatings.items():
+        print(tx+": "+rating)
+        if rating =="perfect": perfectCount+=1
+        if rating =="good": goodCount+=1
+        if rating =="insufficient": insufficientCount+=1
+    print("\nperfect         "+str(perfectCount))
+    print("good            "+str(goodCount))
+    print("insufficient    "+str(insufficientCount))
+
+def main(jsonPath):
+    folder = "../assets/müllerData"
+    classifierPath = "../classifier.pkl"
+    parseBatch(folder, classifierPath)
+    #analyseSingleFile(jsonPath, classifierPath)
+
+if __name__ == "__main__":
+    jsonPath = "../assets/müllerData/tx_10_2.jpg.json"
+    main(jsonPath)
+
